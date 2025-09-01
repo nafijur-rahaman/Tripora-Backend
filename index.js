@@ -33,6 +33,30 @@ async function run() {
 run().catch(console.dir);
 
 
+// create a package
+
+app.post("api/create_package/",async(req,res)=>{
+    try{
+        const newPackage = {
+            ...req.body,
+            bookingCount: 0,
+            createdAt: new Date()
+        };
+        const result = await packagesCollection.insertOne(newPackage);
+        res.status(201).send({
+            success: true,
+            message: "Package created successfully",
+            data: result
+        });
+    }catch(error){
+        console.error(error);
+        res.status(500).send("Something went wrong");
+    }
+})
+
+
+
+
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
