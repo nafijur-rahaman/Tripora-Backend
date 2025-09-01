@@ -55,7 +55,79 @@ app.post("api/create_package/",async(req,res)=>{
 })
 
 
+// get all packages
 
+app.get('api/get_all_packages/',async(req,res)=>{
+    try{
+        const result = await packagesCollection.find().toArray();
+        res.status(200).send({
+            success: true,
+            message: "Packages fetched successfully",
+            data: result
+        });
+    }catch(error){
+        console.error(error);
+        res.status(500).send("Something went wrong");
+    }
+})
+
+
+
+// get a single package
+
+
+app.get("api/get_package/:id",async(req,res)=>{
+    try{
+        const id = req.params.id;
+        const result = await packagesCollection.findOne({ _id: new ObjectId(id) });
+        res.status(200).send({
+            success: true,
+            message: "Package fetched successfully",
+            data: result
+        });
+    }catch(error){
+        console.error(error);
+        res.status(500).send("Something went wrong");
+    }
+})
+
+
+// update a package
+
+app.put("api/update_package/:id",async(req,res)=>{
+    try{
+        const id = req.params.id;
+        const updatedPackage = req.body;
+        const result = await packagesCollection.updateOne({ _id: new ObjectId(id) }, { $set: updatedPackage });
+        res.status(200).send({
+            success: true,
+            message: "Package updated successfully",
+            data: result
+        });
+    }catch(error){
+        console.error(error);
+        res.status(500).send("Something went wrong");
+    }
+})
+
+
+// delete a package
+
+
+app.delete("api/delete_package/:id",async(req,res)=>{
+    try{
+        const id = req.params.id;
+        const result = await packagesCollection.deleteOne({ _id: new ObjectId(id) });
+        res.status(200).send({
+            success: true,
+            message: "Package deleted successfully",
+            data: result
+        });
+    }catch(error){
+        console.error(error);
+        res.status(500).send("Something went wrong");
+    }
+})
 
 
 app.listen(port, () => {
