@@ -16,13 +16,16 @@ const client = new MongoClient(uri, {
   },
 });
 
+let packagesCollection;
+let categoriesCollection;
+
 async function run() {
   try {
     await client.connect();
 
     const db = client.db(process.env.DB_NAME);
-    const packagesCollection = db.collection("packages");
-    const categoriesCollection = db.collection("categories");
+    packagesCollection = db.collection("packages");
+    categoriesCollection = db.collection("categories");
 
     await client.db("admin").command({ ping: 1 });
     console.log("✅ Successfully connected and pinged MongoDB!");
@@ -128,6 +131,21 @@ app.delete("api/delete_package/:id",async(req,res)=>{
         res.status(500).send("Something went wrong");
     }
 })
+
+
+
+// get all packages
+
+app.get('/api/categories', async (req, res) => {
+  try {
+    const categories = await categoriesCollection.find().toArray();
+    res.json(categories);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+
 
 
 app.listen(port, () => {
