@@ -1,0 +1,40 @@
+# Node.js
+node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Dependency directories
+pids/
+*.pid
+*.pid.lock
+
+# Optional npm cache directory
+.npm/
+
+# Optional ESLint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Environment variables
+.env
+.env.*
+
+# Test coverage
+coverage/
+
+# Build artifacts
+dist/
+build/
+
+# macOS specific files
+.DS_Store
+
+# IDE and editor specific files
+.vscode/
+.idea/
+.vercel
