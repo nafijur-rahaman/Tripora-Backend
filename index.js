@@ -225,6 +225,94 @@ try{
 }
 })
 
+// if cancel delete booking and decrement booking count of package
+
+app.delete("/api/delete_booking/", async (req, res) => {
+  const { booking_id, package_id } = req.body;
+
+  if (!booking_id || !ObjectId.isValid(booking_id)) {
+    return res.status(400).send({
+      success: false,
+      message: "Valid booking ID is required",
+    });
+  }
+
+  if (!package_id || !ObjectId.isValid(package_id)) {
+    return res.status(400).send({
+      success: false,
+      message: "Valid package ID is required",
+    });
+  }
+
+  try {
+    // Delete the booking
+    const deleteResult = await packageBookingsCollection.deleteOne({
+      _id: new ObjectId(booking_id),
+    });
+
+    if (deleteResult.deletedCount === 0) {
+      return res.status(404).send({
+        success: false,
+        message: "Booking not found",
+      });
+    }
+
+    // Decrement booking count in the package
+    await packagesCollection.updateOne(
+      { _id: new ObjectId(package_id) },
+      { $inc: { bookingCount: -1 } }
+    );
+
+    res.status(200).send({
+      success: true,
+      message: "Booking deleted successfully",
+      data: deleteResult,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Something went wrong");
+  }
+});
+
+
+// get all booking package
+
+
+app.get("/api/get_all_bookings", async (req, res) => {
+  // try {
+  //   const userEmail = req.query.userEmail;
+  //   console.log(userEmail);
+
+  //   if (!userEmail) {
+  //     return res.status(400).send({
+  //       success: false,
+  //       message: "User email is required",
+  //     });
+  //   }
+
+  //   const result = await packageBookingsCollection
+  //     .find({ guide_email: userEmail })
+  //     .toArray();
+
+  //   res.status(200).send({
+  //     success: true,
+  //     message: "Bookings fetched successfully",
+  //     data: result,
+  //   });
+  // } catch (error) {
+  //   console.error(error);
+  //   res.status(500).send("Something went wrong");
+  // }
+
+  const result = await packageBookingsCollection.find().toArray();
+  res.status(200).send({
+    success: true,
+    message: "Bookings fetched successfully",
+    data: result,
+  });
+
+});
+
 
 
 // get all categories
