@@ -4,7 +4,8 @@ const { MongoClient, ServerApiVersion } = require("mongodb");
 const cors = require("cors");
 const { ObjectId } = require("mongodb");
 const app = express();
-
+const admin = require("./firebaseAdmin");
+const { verifyToken } = require("./middleware/authMiddleware");
 
 
 app.use(cors());
@@ -69,7 +70,7 @@ app.post("/api/create_package/",async(req,res)=>{
 
 // get all packages
 
-app.get('/api/get_all_packages/',async(req,res)=>{
+app.get('/api/get_all_packages/' , verifyToken, async(req,res)=>{
     try{
         const result = await packagesCollection.find().toArray();
         res.status(200).send({
