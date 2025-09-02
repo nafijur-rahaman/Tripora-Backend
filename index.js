@@ -24,6 +24,7 @@ const client = new MongoClient(uri, {
 
 let packagesCollection;
 let categoriesCollection;
+let packageBookingsCollection;
 
 
 async function run() {
@@ -33,7 +34,7 @@ async function run() {
     const db = client.db(process.env.DB_NAME);
     packagesCollection = db.collection("packages");
     categoriesCollection = db.collection("categories");
-
+    packageBookingsCollection = db.collection("package_bookings");
 
     await client.db("admin").command({ ping: 1 });
     console.log("✅ Successfully connected and pinged MongoDB!");
@@ -163,6 +164,65 @@ app.delete("/api/delete_package/:id",async(req,res)=>{
         console.error(error);
         res.status(500).send("Something went wrong");
     }
+})
+
+// booking a package
+//inc booking count of package and create a booking
+
+app.post("/api/book_package/", async (req, res) => {
+  try {
+    const { package_id, ...rest } = req.body;
+
+    if (!package_id || !ObjectId.isValid(package_id)) {
+      return res.status(400).send({
+        success: false,
+        message: "Valid package ID is required",
+      });
+    }
+
+    const newBooking = {
+      ...rest,
+      package_id: new ObjectId(package_id),
+      createdAt: new Date(),
+    };
+
+    await packagesCollection.updateOne(
+      { _id: new ObjectId(package_id) },
+      { $inc: { bookingCount: 1 } }
+    );
+
+    const result = await packageBookingsCollection.insertOne(newBooking);
+
+    res.status(201).send({
+      success: true,
+      message: "Package booked successfully",
+      data: { bookingId: result.insertedId },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Something went wrong");
+  }
+});
+
+
+
+// status change of bookings to completed
+
+app.put("/api/update_booking/:id", async (req, res) =>{
+try{
+    const status = "completed";
+    const id = req.params.id;
+    const result = await packageBookingsCollection.updateOne({ _id: new ObjectId(id) }, { $set: { status } });
+    res.status(200).send({
+        success: true,
+        message: "Booking status updated successfully",
+        data: result
+    });
+
+}catch(error){
+    console.error(error);
+    res.status(500).send("Something went wrong");
+}
 })
 
 
