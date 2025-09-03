@@ -48,7 +48,7 @@ run().catch(console.dir);
 
 // create a package
 
-app.post("/api/create_package/",async(req,res)=>{
+app.post("/api/create_package/", verifyToken, async(req,res)=>{
     try{
         const newPackage = {
             ...req.body,
@@ -84,12 +84,26 @@ app.get('/api/get_all_packages/' , verifyToken, async(req,res)=>{
     }
 })
 
+// get 6 packages
 
+app.get('/api/get_limited_packages/' , verifyToken, async(req,res)=>{
+    try{
+        const result = await packagesCollection.find().limit(6).toArray();
+        res.status(200).send({
+            success: true,
+            message: "Packages fetched successfully",
+            data: result
+        });
+    }catch(error){
+        console.error(error);
+        res.status(500).send("Something went wrong");
+    }
+})
 
 // get a single package
 
 
-app.get("/api/get_package/:id",async(req,res)=>{
+app.get("/api/get_package/:id",verifyToken, async(req,res)=>{
     try{
         const id = req.params.id;
         const result = await packagesCollection.findOne({ _id: new ObjectId(id) });
@@ -107,9 +121,10 @@ app.get("/api/get_package/:id",async(req,res)=>{
 
 // get user individual packages
 
-app.get("/api/get_user_packages/", async(req,res)=>{
+app.get("/api/get_user_packages/", verifyToken, async(req,res)=>{
     try{
         const userEmail = req.query.userEmail;
+        console.log(userEmail);
         const result = await packagesCollection.find({ guide_email: userEmail }).toArray();
         res.status(200).send({
             success: true,
@@ -125,7 +140,7 @@ app.get("/api/get_user_packages/", async(req,res)=>{
 
 // update a package
 
-app.put("/api/update_package/:id", async (req, res) => {
+app.put("/api/update_package/:id", verifyToken, async (req, res) => {
   try {
     const id = req.params.id;
     const updatedPackage = { ...req.body };
@@ -152,7 +167,7 @@ app.put("/api/update_package/:id", async (req, res) => {
 // delete a package
 
 
-app.delete("/api/delete_package/:id",async(req,res)=>{
+app.delete("/api/delete_package/:id", verifyToken, async(req,res)=>{
     try{
         const id = req.params.id;
         const result = await packagesCollection.deleteOne({ _id: new ObjectId(id) });
@@ -170,7 +185,7 @@ app.delete("/api/delete_package/:id",async(req,res)=>{
 // booking a package
 //inc booking count of package and create a booking
 
-app.post("/api/book_package/", async (req, res) => {
+app.post("/api/book_package/", verifyToken, async (req, res) => {
   try {
     const { package_id, ...rest } = req.body;
 
@@ -209,7 +224,7 @@ app.post("/api/book_package/", async (req, res) => {
 
 // status change of bookings to completed
 
-app.put("/api/update_booking/:id", async (req, res) =>{
+app.put("/api/update_booking/:id", verifyToken, async (req, res) =>{
 try{
     const status = "completed";
     const id = req.params.id;
@@ -228,7 +243,7 @@ try{
 
 // if cancel delete booking and decrement booking count of package
 
-app.delete("/api/delete_booking/", async (req, res) => {
+app.delete("/api/delete_booking/", verifyToken, async (req, res) => {
   const { booking_id, package_id } = req.body;
 
   if (!booking_id || !ObjectId.isValid(booking_id)) {
@@ -279,38 +294,38 @@ app.delete("/api/delete_booking/", async (req, res) => {
 // get all booking package
 
 
-app.get("/api/get_all_bookings", async (req, res) => {
-  // try {
-  //   const userEmail = req.query.userEmail;
-  //   console.log(userEmail);
+app.get("/api/get_all_bookings", verifyToken, async (req, res) => {
+  try {
+    const userEmail = req.query.userEmail;
+    // console.log(userEmail);
 
-  //   if (!userEmail) {
-  //     return res.status(400).send({
-  //       success: false,
-  //       message: "User email is required",
-  //     });
-  //   }
+    if (!userEmail) {
+      return res.status(400).send({
+        success: false,
+        message: "User email is required",
+      });
+    }
 
-  //   const result = await packageBookingsCollection
-  //     .find({ guide_email: userEmail })
-  //     .toArray();
+    const result = await packageBookingsCollection
+      .find({ guide_email: userEmail })
+      .toArray();
 
-  //   res.status(200).send({
-  //     success: true,
-  //     message: "Bookings fetched successfully",
-  //     data: result,
-  //   });
-  // } catch (error) {
-  //   console.error(error);
-  //   res.status(500).send("Something went wrong");
-  // }
+    res.status(200).send({
+      success: true,
+      message: "Bookings fetched successfully",
+      data: result,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Something went wrong");
+  }
 
-  const result = await packageBookingsCollection.find().toArray();
-  res.status(200).send({
-    success: true,
-    message: "Bookings fetched successfully",
-    data: result,
-  });
+  // const result = await packageBookingsCollection.find().toArray();
+  // res.status(200).send({
+  //   success: true,
+  //   message: "Bookings fetched successfully",
+  //   data: result,
+  // });
 
 });
 
@@ -318,7 +333,7 @@ app.get("/api/get_all_bookings", async (req, res) => {
 
 // get all categories
 
-app.get('/api/categories', async (req, res) => {
+app.get('/api/categories', verifyToken, async (req, res) => {
   try {
     const categories = await categoriesCollection.find().toArray();
     res.json(categories);
