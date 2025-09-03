@@ -27,7 +27,7 @@ let packageBookingsCollection;
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
     const db = client.db(process.env.DB_NAME);
     packagesCollection = db.collection("packages");
     categoriesCollection = db.collection("categories");
@@ -35,7 +35,7 @@ async function run() {
   } catch (error) {}
 }
 
-run().catch(console.dir);
+// run().catch(console.dir);
 
 // ---------------- Routes ---------------- //
 
