@@ -30,14 +30,14 @@ let packageBookingsCollection;
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
 
     const db = client.db(process.env.DB_NAME);
     packagesCollection = db.collection("packages");
     categoriesCollection = db.collection("categories");
     packageBookingsCollection = db.collection("package_bookings");
 
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log("✅ Successfully connected and pinged MongoDB!");
   } catch (error) {
     console.error("❌ MongoDB connection failed:", error);
