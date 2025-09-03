@@ -39,6 +39,12 @@ run().catch(console.dir);
 
 // ---------------- Routes ---------------- //
 
+
+app.get("/", (req, res) => {
+  res.send("hello i am Tripora");
+})
+
+
 // Create a package
 app.post("/api/create_package/", verifyToken, async (req, res) => {
   try {
