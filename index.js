@@ -70,7 +70,7 @@ app.post("/api/create_package/", verifyToken, async(req,res)=>{
 
 // get all packages
 
-app.get('/api/get_all_packages/' , verifyToken, async(req,res)=>{
+app.get('/api/get_all_packages/' ,  async(req,res)=>{
     try{
         const result = await packagesCollection.find().toArray();
         res.status(200).send({
@@ -333,7 +333,7 @@ app.get("/api/get_all_bookings", verifyToken, async (req, res) => {
 
 // get all categories
 
-app.get('/api/categories', verifyToken, async (req, res) => {
+app.get('/api/categories', async (req, res) => {
   try {
     const categories = await categoriesCollection.find().toArray();
     res.json(categories);
