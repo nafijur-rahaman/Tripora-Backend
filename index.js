@@ -213,7 +213,7 @@ app.get("/api/get_all_bookings", verifyToken, async (req, res) => {
       return res.status(400).send({ success: false, message: "User email is required" });
     }
 
-    const result = await packageBookingsCollection.find({ guide_email: userEmail }).toArray();
+    const result = await packageBookingsCollection.find({ buyer_email: userEmail }).toArray();
     res.status(200).send({ success: true, message: "Bookings fetched successfully", data: result });
   } catch (error) {
     console.error(error);
