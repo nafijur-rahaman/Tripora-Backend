@@ -89,7 +89,7 @@ app.get("/api/get_all_packages/", async (req, res) => {
 });
 
 // Get 6 packages
-app.get("/api/get_limited_packages/", verifyToken, async (req, res) => {
+app.get("/api/get_limited_packages/", async (req, res) => {
   try {
     const result = await packagesCollection.find().limit(6).toArray();
     res.status(200).send({ success: true, message: "Packages fetched successfully", data: result });
