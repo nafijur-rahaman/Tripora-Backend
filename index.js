@@ -16,21 +16,18 @@ const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster
 
 // MongoDB client setup
 
-
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
-  }
+  },
 });
-
-
 
 let packagesCollection;
 let categoriesCollection;
 let packageBookingsCollection;
-
+let usersCollection;
 
 async function run() {
   try {
@@ -41,6 +38,7 @@ async function run() {
     packagesCollection = db.collection("packages");
     categoriesCollection = db.collection("categories");
     packageBookingsCollection = db.collection("package_bookings");
+    usersCollection = db.collection("users");
 
     console.log(`Connected to MongoDB: ${process.env.DB_NAME}`);
 
@@ -53,11 +51,7 @@ async function run() {
   }
 }
 
-
 run().catch(console.dir);
-
-
-
 
 // ---------------- Routes ---------------- //
 
@@ -65,23 +59,173 @@ app.get("/", (req, res) => {
   res.send("Hello, I am Tripora");
 });
 
-// Create a package
-app.post("/api/create_package/", verifyToken, async (req, res) => {
+//-------------------Auth Routes-------------------//
+
+//create user
+
+app.post("/api/create_user/", async (req, res) => {
   try {
-    const newPackage = { ...req.body, bookingCount: 0, createdAt: new Date() };
-    const result = await packagesCollection.insertOne(newPackage);
-    res.status(201).send({ success: true, message: "Package created successfully", data: result });
+    const userData = req.body;
+    const existingUser = await usersCollection.findOne({
+      email: userData.email,
+    });
+
+    if (existingUser) {
+      return res
+        .status(200)
+        .send({
+          success: true,
+          message: "User already exists",
+          data: existingUser,
+        });
+    }
+    const userDataWithRole = {
+      ...userData,
+      role: "customer",
+      status: "active",
+      createdAt: new Date(),
+    };
+    const user = { ...userDataWithRole };
+
+    const result = await usersCollection.insertOne(user);
+    res
+      .status(201)
+      .send({
+        success: true,
+        message: "User created successfully",
+        data: result,
+      });
   } catch (error) {
     console.error(error);
     res.status(500).send({ success: false, message: error.message });
   }
 });
 
+
+//Get all users
+app.get("/api/get-all-users",verifyToken,  async (req, res) => {
+  try {
+    const result = await usersCollection.find().toArray();
+    res
+      .status(200)
+      .send({ success: true, message: "Users fetched successfully", data: result });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ success: false, message: error.message });
+  }
+});
+
+
+//change user status
+app.put("/api/update-user-status/:id", verifyToken, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const status = "banned";
+    const result = await usersCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { status: status } }
+    );
+    res
+      .status(200)
+      .send({ success: true, message: "User status updated successfully", data: result });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ success: false, message: error.message });
+  }
+});
+
+//delete user
+
+app.delete("/api/delete-user/:id", verifyToken, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const result = await usersCollection.deleteOne({ _id: new ObjectId(id) });
+    res
+      .status(200)
+      .send({ success: true, message: "User deleted successfully", data: result });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ success: false, message: error.message });
+  }
+});
+
+//get user info
+
+app.get("/api/user-info", async (req, res) => {
+  try {
+    const email = req.query.email;
+    const user = await usersCollection.findOne({ email: email });
+    if (!user) {
+      return res
+        .status(404)
+        .send({ success: false, message: "User not found" });
+    }
+    res
+      .status(200)
+      .send({
+        success: true,
+        message: "User info fetched successfully",
+        data: user,
+      });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ success: false, message: error.message });
+  }
+});
+
+//---------------- Package Routes ---------------- //
+
+// Create a package
+app.post("/api/add-packages", verifyToken, async (req, res) => {
+  try {
+    const { title, price, location } = req.body;
+
+    // Basic validation
+    if (!title || !price || !location) {
+      return res.status(400).send({
+        success: false,
+        message: "Title, price, and location are required fields.",
+      });
+    }
+
+    const newPackage = {
+      ...req.body,
+      bookingCount: 0,
+      createdAt: new Date(),
+    };
+
+    const result = await packagesCollection.insertOne(newPackage);
+
+    if (!result.insertedId) {
+      throw new Error("Failed to create package");
+    }
+
+    res.status(201).send({
+      success: true,
+      message: "Package created successfully",
+      data: { ...newPackage, _id: result.insertedId },
+    });
+  } catch (error) {
+    console.error("Error creating package:", error);
+    res.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+});
+
 // Get all packages
-app.get("/api/get_all_packages/", async (req, res) => {
+app.get("/api/get-all-packages/", async (req, res) => {
   try {
     const result = await packagesCollection.find().toArray();
-    res.status(200).send({ success: true, message: "Packages fetched successfully", data: result });
+    res
+      .status(200)
+      .send({
+        success: true,
+        message: "Packages fetched successfully",
+        data: result,
+      });
   } catch (error) {
     console.error(error);
     res.status(500).send({ success: false, message: error.message });
@@ -92,7 +236,13 @@ app.get("/api/get_all_packages/", async (req, res) => {
 app.get("/api/get_limited_packages/", async (req, res) => {
   try {
     const result = await packagesCollection.find().limit(6).toArray();
-    res.status(200).send({ success: true, message: "Packages fetched successfully", data: result });
+    res
+      .status(200)
+      .send({
+        success: true,
+        message: "Packages fetched successfully",
+        data: result,
+      });
   } catch (error) {
     console.error(error);
     res.status(500).send({ success: false, message: error.message });
@@ -100,11 +250,17 @@ app.get("/api/get_limited_packages/", async (req, res) => {
 });
 
 // Get a single package
-app.get("/api/get_package/:id", verifyToken, async (req, res) => {
+app.get("/api/get-package/:id", verifyToken, async (req, res) => {
   try {
     const id = req.params.id;
     const result = await packagesCollection.findOne({ _id: new ObjectId(id) });
-    res.status(200).send({ success: true, message: "Package fetched successfully", data: result });
+    res
+      .status(200)
+      .send({
+        success: true,
+        message: "Package fetched successfully",
+        data: result,
+      });
   } catch (error) {
     console.error(error);
     res.status(500).send({ success: false, message: error.message });
@@ -115,8 +271,16 @@ app.get("/api/get_package/:id", verifyToken, async (req, res) => {
 app.get("/api/get_user_packages/", verifyToken, async (req, res) => {
   try {
     const userEmail = req.query.userEmail;
-    const result = await packagesCollection.find({ guide_email: userEmail }).toArray();
-    res.status(200).send({ success: true, message: "Packages fetched successfully", data: result });
+    const result = await packagesCollection
+      .find({ guide_email: userEmail })
+      .toArray();
+    res
+      .status(200)
+      .send({
+        success: true,
+        message: "Packages fetched successfully",
+        data: result,
+      });
   } catch (error) {
     console.error(error);
     res.status(500).send({ success: false, message: error.message });
@@ -129,8 +293,17 @@ app.put("/api/update_package/:id", verifyToken, async (req, res) => {
     const id = req.params.id;
     const updatedPackage = { ...req.body };
     delete updatedPackage._id;
-    const result = await packagesCollection.updateOne({ _id: new ObjectId(id) }, { $set: updatedPackage });
-    res.status(200).send({ success: true, message: "Package updated successfully", data: result });
+    const result = await packagesCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updatedPackage }
+    );
+    res
+      .status(200)
+      .send({
+        success: true,
+        message: "Package updated successfully",
+        data: result,
+      });
   } catch (error) {
     console.error(error);
     res.status(500).send({ success: false, message: error.message });
@@ -138,11 +311,19 @@ app.put("/api/update_package/:id", verifyToken, async (req, res) => {
 });
 
 // Delete a package
-app.delete("/api/delete_package/:id", verifyToken, async (req, res) => {
+app.delete("/api/delete-package/:id", verifyToken, async (req, res) => {
   try {
     const id = req.params.id;
-    const result = await packagesCollection.deleteOne({ _id: new ObjectId(id) });
-    res.status(200).send({ success: true, message: "Package deleted successfully", data: result });
+    const result = await packagesCollection.deleteOne({
+      _id: new ObjectId(id),
+    });
+    res
+      .status(200)
+      .send({
+        success: true,
+        message: "Package deleted successfully",
+        data: result,
+      });
   } catch (error) {
     console.error(error);
     res.status(500).send({ success: false, message: error.message });
@@ -154,14 +335,29 @@ app.post("/api/book_package/", verifyToken, async (req, res) => {
   try {
     const { package_id, ...rest } = req.body;
     if (!package_id || !ObjectId.isValid(package_id)) {
-      return res.status(400).send({ success: false, message: "Valid package ID is required" });
+      return res
+        .status(400)
+        .send({ success: false, message: "Valid package ID is required" });
     }
 
-    const newBooking = { ...rest, package_id: new ObjectId(package_id), createdAt: new Date() };
-    await packagesCollection.updateOne({ _id: new ObjectId(package_id) }, { $inc: { bookingCount: 1 } });
+    const newBooking = {
+      ...rest,
+      package_id: new ObjectId(package_id),
+      createdAt: new Date(),
+    };
+    await packagesCollection.updateOne(
+      { _id: new ObjectId(package_id) },
+      { $inc: { bookingCount: 1 } }
+    );
     const result = await packageBookingsCollection.insertOne(newBooking);
 
-    res.status(201).send({ success: true, message: "Package booked successfully", data: { bookingId: result.insertedId } });
+    res
+      .status(201)
+      .send({
+        success: true,
+        message: "Package booked successfully",
+        data: { bookingId: result.insertedId },
+      });
   } catch (error) {
     console.error(error);
     res.status(500).send({ success: false, message: error.message });
@@ -173,8 +369,17 @@ app.put("/api/update_booking/:id", verifyToken, async (req, res) => {
   try {
     const status = "completed";
     const id = req.params.id;
-    const result = await packageBookingsCollection.updateOne({ _id: new ObjectId(id) }, { $set: { status } });
-    res.status(200).send({ success: true, message: "Booking status updated successfully", data: result });
+    const result = await packageBookingsCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { status } }
+    );
+    res
+      .status(200)
+      .send({
+        success: true,
+        message: "Booking status updated successfully",
+        data: result,
+      });
   } catch (error) {
     console.error(error);
     res.status(500).send({ success: false, message: error.message });
@@ -185,20 +390,37 @@ app.put("/api/update_booking/:id", verifyToken, async (req, res) => {
 app.delete("/api/delete_booking/", verifyToken, async (req, res) => {
   const { booking_id, package_id } = req.body;
   if (!booking_id || !ObjectId.isValid(booking_id)) {
-    return res.status(400).send({ success: false, message: "Valid booking ID is required" });
+    return res
+      .status(400)
+      .send({ success: false, message: "Valid booking ID is required" });
   }
   if (!package_id || !ObjectId.isValid(package_id)) {
-    return res.status(400).send({ success: false, message: "Valid package ID is required" });
+    return res
+      .status(400)
+      .send({ success: false, message: "Valid package ID is required" });
   }
 
   try {
-    const deleteResult = await packageBookingsCollection.deleteOne({ _id: new ObjectId(booking_id) });
+    const deleteResult = await packageBookingsCollection.deleteOne({
+      _id: new ObjectId(booking_id),
+    });
     if (deleteResult.deletedCount === 0) {
-      return res.status(404).send({ success: false, message: "Booking not found" });
+      return res
+        .status(404)
+        .send({ success: false, message: "Booking not found" });
     }
 
-    await packagesCollection.updateOne({ _id: new ObjectId(package_id) }, { $inc: { bookingCount: -1 } });
-    res.status(200).send({ success: true, message: "Booking deleted successfully", data: deleteResult });
+    await packagesCollection.updateOne(
+      { _id: new ObjectId(package_id) },
+      { $inc: { bookingCount: -1 } }
+    );
+    res
+      .status(200)
+      .send({
+        success: true,
+        message: "Booking deleted successfully",
+        data: deleteResult,
+      });
   } catch (error) {
     console.error(error);
     res.status(500).send({ success: false, message: error.message });
@@ -210,11 +432,21 @@ app.get("/api/get_all_bookings", verifyToken, async (req, res) => {
   try {
     const userEmail = req.query.userEmail;
     if (!userEmail) {
-      return res.status(400).send({ success: false, message: "User email is required" });
+      return res
+        .status(400)
+        .send({ success: false, message: "User email is required" });
     }
 
-    const result = await packageBookingsCollection.find({ buyer_email: userEmail }).toArray();
-    res.status(200).send({ success: true, message: "Bookings fetched successfully", data: result });
+    const result = await packageBookingsCollection
+      .find({ buyer_email: userEmail })
+      .toArray();
+    res
+      .status(200)
+      .send({
+        success: true,
+        message: "Bookings fetched successfully",
+        data: result,
+      });
   } catch (error) {
     console.error(error);
     res.status(500).send({ success: false, message: error.message });
@@ -225,10 +457,15 @@ app.get("/api/get_all_bookings", verifyToken, async (req, res) => {
 app.get("/api/categories", async (req, res) => {
   try {
     const categories = await categoriesCollection.find().toArray();
-    res.status(200).send({ success: true, message: "Categories fetched successfully", data: categories });
+    res
+      .status(200)
+      .send({
+        success: true,
+        message: "Categories fetched successfully",
+        data: categories,
+      });
   } catch (error) {
     console.error(error);
     res.status(500).send({ success: false, message: error.message });
   }
 });
-
