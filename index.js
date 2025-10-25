@@ -29,6 +29,8 @@ let categoriesCollection;
 let packageBookingsCollection;
 let usersCollection;
 let reviewsCollection;
+let transactionsCollection;
+let counterCollection;
 
 // Connect to MongoDB
 
@@ -43,7 +45,15 @@ async function run() {
     packageBookingsCollection = db.collection("package_bookings");
     usersCollection = db.collection("users");
     reviewsCollection = db.collection("reviews");
+    transactionsCollection = db.collection("transactions");
+    counterCollection = db.collection("counters");
 
+
+     await counterCollection.updateOne(
+      { _id: "bookingId" },
+      { $setOnInsert: { seq: 0 } },
+      { upsert: true }
+    );
 
 
     console.log(`Connected to MongoDB: ${process.env.DB_NAME}`);
@@ -504,18 +514,18 @@ app.post("/api/add-review", verifyToken, async (req, res) => {
       createdAt: new Date(),
     };
 
-    // 1️⃣ Insert review
+    // Insert review
     const result = await reviewsCollection.insertOne(newReview);
     if (!result.insertedId) throw new Error("Failed to create review");
 
-    // 2️⃣ Fetch all reviews for this package
+    // Fetch all reviews for this package
     const allReviews = await reviewsCollection.find({ packageId }).toArray();
 
-    // 3️⃣ Calculate average rating
+    // Calculate average rating
     const avgRating =
       allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
 
-    // 4️⃣ Update rating & reviewCount in the package
+    // Update rating & reviewCount in the package
     await packagesCollection.updateOne(
       { _id: new ObjectId(packageId) },
       {
@@ -576,3 +586,38 @@ app.get("/api/reviews/:packageId", async (req, res) => {
     });
   }
 });
+
+
+
+//----------------- Payment Routes ----------------- //
+
+// stripe payment creation
+
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+
+app.post("/api/create-payment",verifyToken,async (req, res) => {
+    // console.log(req.body);
+    const { packageId, packageName, amount, customerEmail } = req.body;
+
+    if (!packageId || !packageName || !amount || !customerEmail) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    try {
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount * 100,
+        currency: "usd",
+        receipt_email: customerEmail,
+        metadata: { packageId, packageName },
+      });
+
+      res.json({ clientSecret: paymentIntent.client_secret });
+    } catch (err) {
+      // console.error(err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+
+
