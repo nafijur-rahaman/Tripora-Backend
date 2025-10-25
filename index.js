@@ -45,7 +45,7 @@ async function run() {
     reviewsCollection = db.collection("reviews");
 
 
-    
+
     console.log(`Connected to MongoDB: ${process.env.DB_NAME}`);
 
     // Start server only after DB is ready
@@ -197,6 +197,8 @@ app.post("/api/add-packages", verifyToken, async (req, res) => {
     const newPackage = {
       ...req.body,
       bookingCount: 0,
+      rating: 0,
+      reviewCount: 0,
       createdAt: new Date(),
     };
 
@@ -256,7 +258,7 @@ app.get("/api/get_limited_packages/", async (req, res) => {
 });
 
 // Get a single package
-app.get("/api/get-package/:id", verifyToken, async (req, res) => {
+app.get("/api/get-package/:id",  async (req, res) => {
   try {
     const id = req.params.id;
     const result = await packagesCollection.findOne({ _id: new ObjectId(id) });
@@ -474,11 +476,11 @@ app.get("/api/categories", async (req, res) => {
 
 //---------------- Review Routes ---------------- //
 
-// Submit a review
-app.post("/api/submit_review", verifyToken, async (req, res) => {
+// Create a review and update package rating & reviewCount
+app.post("/api/add-review", verifyToken, async (req, res) => {
   try {
     const { packageId, rating, comment } = req.body;
-    const userEmail = req.user?.email; 
+    const userEmail = req.user?.email;
 
     if (!packageId || !rating) {
       return res.status(400).send({
@@ -502,19 +504,71 @@ app.post("/api/submit_review", verifyToken, async (req, res) => {
       createdAt: new Date(),
     };
 
+    // 1️⃣ Insert review
     const result = await reviewsCollection.insertOne(newReview);
+    if (!result.insertedId) throw new Error("Failed to create review");
 
-    if (!result.insertedId) {
-      throw new Error("Failed to create review");
-    }
+    // 2️⃣ Fetch all reviews for this package
+    const allReviews = await reviewsCollection.find({ packageId }).toArray();
+
+    // 3️⃣ Calculate average rating
+    const avgRating =
+      allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
+
+    // 4️⃣ Update rating & reviewCount in the package
+    await packagesCollection.updateOne(
+      { _id: new ObjectId(packageId) },
+      {
+        $set: {
+          rating: parseFloat(avgRating.toFixed(1)),
+          reviewCount: allReviews.length,
+        },
+      }
+    );
 
     res.status(201).send({
       success: true,
-      message: "Review added successfully",
+      message: "Review added, rating & review count updated",
       data: { ...newReview, _id: result.insertedId },
     });
   } catch (error) {
     console.error("Error creating review:", error);
+    res.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+});
+
+
+
+// Get all reviews for a specific package
+app.get("/api/reviews/:packageId", async (req, res) => {
+  try {
+    const { packageId } = req.params;
+
+    if (!packageId) {
+      return res.status(400).send({
+        success: false,
+        message: "Package ID is required.",
+      });
+    }
+
+    // Fetch all reviews for this package
+    const reviews = await reviewsCollection
+      .find({ packageId })
+      .sort({ createdAt: -1 }) // newest first
+      .toArray();
+
+    res.status(200).send({
+      success: true,
+      message: "Reviews fetched successfully",
+      count: reviews.length,
+      data: reviews,
+    });
+  } catch (error) {
+    console.error("Error fetching reviews:", error);
     res.status(500).send({
       success: false,
       message: "Internal Server Error",
