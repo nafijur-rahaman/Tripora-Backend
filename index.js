@@ -28,6 +28,9 @@ let packagesCollection;
 let categoriesCollection;
 let packageBookingsCollection;
 let usersCollection;
+let reviewsCollection;
+
+// Connect to MongoDB
 
 async function run() {
   try {
@@ -39,7 +42,10 @@ async function run() {
     categoriesCollection = db.collection("categories");
     packageBookingsCollection = db.collection("package_bookings");
     usersCollection = db.collection("users");
+    reviewsCollection = db.collection("reviews");
 
+
+    
     console.log(`Connected to MongoDB: ${process.env.DB_NAME}`);
 
     // Start server only after DB is ready
@@ -330,6 +336,12 @@ app.delete("/api/delete-package/:id", verifyToken, async (req, res) => {
   }
 });
 
+
+
+
+//---------------- Package Booking Routes ---------------- //
+
+
 // Book a package
 app.post("/api/book_package/", verifyToken, async (req, res) => {
   try {
@@ -428,21 +440,10 @@ app.delete("/api/delete_booking/", verifyToken, async (req, res) => {
 });
 
 // Get all bookings
-app.get("/api/get_all_bookings", verifyToken, async (req, res) => {
+app.get("/api/get-all-bookings", verifyToken, async (req, res) => {
   try {
-    const userEmail = req.query.userEmail;
-    if (!userEmail) {
-      return res
-        .status(400)
-        .send({ success: false, message: "User email is required" });
-    }
-
-    const result = await packageBookingsCollection
-      .find({ buyer_email: userEmail })
-      .toArray();
-    res
-      .status(200)
-      .send({
+    const result = await packageBookingsCollection.find().toArray();
+    res.status(200).send({
         success: true,
         message: "Bookings fetched successfully",
         data: result,
@@ -467,5 +468,57 @@ app.get("/api/categories", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).send({ success: false, message: error.message });
+  }
+});
+
+
+//---------------- Review Routes ---------------- //
+
+// Submit a review
+app.post("/api/submit_review", verifyToken, async (req, res) => {
+  try {
+    const { packageId, rating, comment } = req.body;
+    const userEmail = req.user?.email; 
+
+    if (!packageId || !rating) {
+      return res.status(400).send({
+        success: false,
+        message: "Package ID and rating are required.",
+      });
+    }
+
+    if (typeof rating !== "number" || rating < 1 || rating > 5) {
+      return res.status(400).send({
+        success: false,
+        message: "Rating must be a number between 1 and 5.",
+      });
+    }
+
+    const newReview = {
+      packageId,
+      rating,
+      comment: comment || "",
+      userEmail,
+      createdAt: new Date(),
+    };
+
+    const result = await reviewsCollection.insertOne(newReview);
+
+    if (!result.insertedId) {
+      throw new Error("Failed to create review");
+    }
+
+    res.status(201).send({
+      success: true,
+      message: "Review added successfully",
+      data: { ...newReview, _id: result.insertedId },
+    });
+  } catch (error) {
+    console.error("Error creating review:", error);
+    res.status(500).send({
+      success: false,
+      message: "Internal Server Error",
+      error: error.message,
+    });
   }
 });
