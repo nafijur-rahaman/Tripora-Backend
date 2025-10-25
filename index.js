@@ -353,6 +353,16 @@ app.delete("/api/delete-package/:id", verifyToken, async (req, res) => {
 
 //---------------- Package Booking Routes ---------------- //
 
+async function getNextBookingId() {
+  const result = await countersCollection.findOneAndUpdate(
+    { _id: "bookingId" },
+    { $inc: { seq: 1 } },
+    { returnDocument: "after", upsert: true }
+  );
+  
+  const seq = result.value.seq;
+  return "B" + seq.toString().padStart(4, "0"); // B0001, B0002, etc.
+}
 
 // Book a package
 app.post("/api/book_package/", verifyToken, async (req, res) => {
@@ -364,29 +374,33 @@ app.post("/api/book_package/", verifyToken, async (req, res) => {
         .send({ success: false, message: "Valid package ID is required" });
     }
 
+    const bookingId = await getNextBookingId(); 
+
     const newBooking = {
       ...rest,
       package_id: new ObjectId(package_id),
+      bookingId, 
       createdAt: new Date(),
     };
+
     await packagesCollection.updateOne(
       { _id: new ObjectId(package_id) },
       { $inc: { bookingCount: 1 } }
     );
+
     const result = await packageBookingsCollection.insertOne(newBooking);
 
-    res
-      .status(201)
-      .send({
-        success: true,
-        message: "Package booked successfully",
-        data: { bookingId: result.insertedId },
-      });
+    res.status(201).send({
+      success: true,
+      message: "Package booked successfully",
+      data: { bookingId, insertedId: result.insertedId },
+    });
   } catch (error) {
     console.error(error);
     res.status(500).send({ success: false, message: error.message });
   }
 });
+
 
 // Update booking status
 app.put("/api/update_booking/:id", verifyToken, async (req, res) => {
@@ -621,3 +635,54 @@ app.post("/api/create-payment",verifyToken,async (req, res) => {
 
 
 
+
+// Save transaction after success and update status and new date in applicationCollection
+app.post( "/api/save-transaction",verifyToken,async (req, res) => {
+    const { paymentIntentId, email, packageId } = req.body;
+
+    if (!paymentIntentId || !email || !packageId) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+    try {
+      const paymentIntent = await stripe.paymentIntents.retrieve(
+        paymentIntentId
+      );
+      const { status, created } = paymentIntent;
+
+      if (status !== "succeeded") {
+        return res.status(400).json({ error: "Payment failed" });
+      }
+
+      const transaction = {
+        paymentIntentId,
+        email,
+        packageId,
+        status,
+        created,
+      };
+
+      await transactionsCollection.insertOne(transaction);
+
+      res.json({ success: true, message: "Transaction saved successfully" });
+    } catch (err) {
+      // console.error(err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// get all transactions
+app.get("/api/get-transactions",verifyToken,async (req, res) => {
+    try {
+      const transactions = await transactionsCollection.find().toArray();
+      res.status(200).json({
+        success: true,
+        message: "Transactions fetched successfully",
+        data: transactions,
+      });
+    } catch (err) {
+      // console.error("Error fetching transactions:", err);
+      res.status(500).json({ success: false, message: "Server error" });
+    }
+  }
+);
