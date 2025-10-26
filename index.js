@@ -473,6 +473,50 @@ app.get("/api/get-all-bookings",  async (req, res) => {
   }
 });
 
+//cancel a package booking
+
+app.put("/api/cancel-booking/:bookingId", verifyToken, async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+
+
+    const booking = await packageBookingsCollection.findOne({ bookingId });
+    if (!booking) {
+      return res.status(404).send({ success: false, message: "Booking not found" });
+    }
+
+    // Update booking status
+    const result = await packageBookingsCollection.updateOne(
+      { bookingId },
+      { $set: { status: "Cancelled" } }
+    );
+
+
+    if (booking.packageId) {
+      await packagesCollection.updateOne(
+        { _id: new ObjectId(booking.packageId) },
+        { $inc: { bookingCount: -1 } }
+      );
+    }
+
+    //when booking cancel i want to add a field in trasnaction collection reufunded: true
+    await transactionsCollection.updateOne(
+      { bookingId },
+      { $set: { refunded: true } }
+    );
+
+    res.status(200).send({
+      success: true,
+      message: `Booking ${bookingId} cancelled successfully`,
+      data: result,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ success: false, message: error.message });
+  }
+});
+
+
 // get user bookings
 
 app.get("/api/get-user-bookings",async (req, res) => {
@@ -756,8 +800,29 @@ app.get("/api/get-user-transactions", async (req, res) => {
 });
 
 
+app.post("/api/refund-payment/:paymentId", verifyToken, async (req, res) => {
+    try {
+        const { paymentId } = req.params;
+
+        // Find the transaction
+        const payment = await transactionsCollection.findOne({ paymentIntentId: paymentId });
+        if (!payment) {
+            return res.status(404).send({ success: false, message: "Payment not found" });
+        }
+            // 3️⃣ Remove the booking
+            if (payment.bookingId) {
+                await packageBookingsCollection.deleteOne({ bookingId: payment.bookingId });
+            }
+
+            return res.send({ success: true, message: "Refund processed and booking removed successfully" });
+        } catch (error) {
+        console.error(error);
+        return res.status(500).send({ success: false, message: error.message });
+    }
+});
+
 // ------------------- Stats Route ------------------- //
-app.get("/api/customer-dashboard", verifyToken, async (req, res) => {
+app.get("/api/customer-dashboard",  async (req, res) => {
   try {
     const email = req.query.email;
     if (!email)
@@ -774,6 +839,7 @@ app.get("/api/customer-dashboard", verifyToken, async (req, res) => {
       .find({
         customerEmail: email,
         date: { $gte: todayStr },
+        status: "confirmed",
         paymentStatus: "succeeded",
       })
       .sort({ date: 1 }) 
