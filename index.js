@@ -809,7 +809,7 @@ app.post("/api/refund-payment/:paymentId", verifyToken, async (req, res) => {
         if (!payment) {
             return res.status(404).send({ success: false, message: "Payment not found" });
         }
-            // 3️⃣ Remove the booking
+
             if (payment.bookingId) {
                 await packageBookingsCollection.deleteOne({ bookingId: payment.bookingId });
             }
